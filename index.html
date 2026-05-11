@@ -1,0 +1,580 @@
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>แผนที่รถไฟฟ้ากรุงเทพฯ – MRT Importance Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+html, body {
+  margin: 0; padding: 0;
+  width: 100%; height: 100%;
+  font-family: 'Segoe UI', 'Noto Sans Thai', sans-serif;
+  background: #0a1628;
+  color: #e2e8f0;
+  overflow: hidden;
+}
+
+/* ── HEADER ── */
+#header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 58px;
+  z-index: 2000;
+  background: linear-gradient(90deg, #0d1f35 0%, #112945 100%);
+  border-bottom: 2px solid #1e4976;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  box-shadow: 0 3px 15px rgba(0,0,0,0.6);
+}
+#header .logo {
+  font-size: 26px;
+  line-height: 1;
+}
+#header .title-block h1 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 2px 0;
+}
+#header .title-block p {
+  font-size: 10px;
+  color: #7eb8f7;
+  margin: 0;
+}
+#header .badges {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.badge {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 8px;
+  padding: 4px 10px;
+  text-align: center;
+}
+.badge .n { font-size: 16px; font-weight: 700; color: #60c4ff; display: block; }
+.badge .l { font-size: 9px; color: #7eb8f7; }
+
+/* ── LAYOUT ── */
+#map {
+  position: fixed;
+  top: 58px; left: 0; right: 320px; bottom: 0;
+}
+
+#sidebar {
+  position: fixed;
+  top: 58px; right: 0; bottom: 0;
+  width: 320px;
+  background: #0d1f35;
+  border-left: 1px solid #1e4976;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 1000;
+}
+#sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+#sidebar-scroll::-webkit-scrollbar { width: 4px; }
+#sidebar-scroll::-webkit-scrollbar-thumb { background: #1e4976; border-radius: 2px; }
+
+/* ── SEARCH ── */
+.sb-section {
+  padding: 12px;
+  border-bottom: 1px solid #1e3a5c;
+}
+.sb-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #4da6ff;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+#q {
+  width: 100%;
+  background: #162b45;
+  border: 1px solid #1e4976;
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 12px;
+  padding: 7px 12px;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+#q:focus { border-color: #3b82f6; }
+#q-results {
+  margin-top: 6px;
+}
+.q-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+.q-item:hover { background: rgba(255,255,255,0.07); }
+.q-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── LAYERS ── */
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 6px;
+  border-radius: 7px;
+  margin-bottom: 3px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.layer-row:hover { background: rgba(255,255,255,0.04); }
+.lsym-line { width: 24px; height: 4px; border-radius: 2px; flex-shrink: 0; }
+.lsym-dot  { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+.lname { font-size: 11px; flex: 1; line-height: 1.3; }
+.lcnt  { font-size: 10px; color: #4b6a8a; }
+/* toggle switch */
+.tog {
+  width: 34px; height: 18px;
+  border-radius: 9px;
+  background: #1e4976;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.25s;
+  cursor: pointer;
+}
+.tog.on  { background: #2563eb; }
+.tog::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.25s;
+}
+.tog.on::after  { left: 18px; }
+.tog.off::after { left: 2px; }
+
+/* ── LEGEND ── */
+.leg-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+  color: #8ba9c8;
+}
+.leg-line { height: 3px; width: 22px; border-radius: 2px; }
+
+/* ── INFO PANEL ── */
+#info-default {
+  padding: 20px 12px;
+  text-align: center;
+  color: #4b6a8a;
+}
+#info-default .big { font-size: 36px; margin-bottom: 8px; }
+#info-default p { font-size: 12px; line-height: 1.6; }
+
+#info-detail { display: none; padding: 12px; }
+.sta-card {
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.sta-id { font-size: 11px; font-weight: 700; opacity: 0.8; margin-bottom: 3px; }
+.sta-name { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+.line-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+}
+.info-row {
+  background: rgba(255,255,255,0.04);
+  border-radius: 7px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.ir-label { font-size: 10px; color: #4b6a8a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+.ir-value { font-size: 12px; color: #cbd5e1; line-height: 1.4; }
+.buf-row {
+  background: rgba(37,99,235,0.1);
+  border: 1px solid rgba(37,99,235,0.25);
+  border-radius: 7px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+.buf-label { font-size: 10px; color: #60a5fa; text-transform: uppercase; margin-bottom: 2px; }
+.buf-value { font-size: 11px; color: #93c5fd; }
+.co-badge {
+  display: inline-block;
+  background: #162b45;
+  border: 1px solid #1e4976;
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: #60a5fa;
+  margin-top: 3px;
+}
+.imp-bar-bg {
+  height: 5px;
+  background: #162b45;
+  border-radius: 3px;
+  margin-top: 5px;
+  overflow: hidden;
+}
+.imp-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #2563eb, #06b6d4);
+  transition: width 0.5s;
+}
+.zoom-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  background: linear-gradient(135deg, #1d4ed8, #0369a1);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: inherit;
+  transition: opacity 0.2s;
+}
+.zoom-btn:hover { opacity: 0.85; }
+
+/* Leaflet popup override */
+.leaflet-popup-content-wrapper {
+  background: #112945;
+  color: #e2e8f0;
+  border: 1px solid #1e4976;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+}
+.leaflet-popup-tip { background: #112945; }
+.leaflet-popup-content { margin: 10px 14px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div class="logo">🚇</div>
+  <div class="title-block">
+    <h1>แผนที่รถไฟฟ้ากรุงเทพมหานคร</h1>
+    <p>ความสำคัญของเส้นทาง MRT &amp; BTS — Bangkok Rail Transit</p>
+  </div>
+  <div class="badges">
+    <div class="badge"><span class="n">76</span><span class="l">MRT</span></div>
+    <div class="badge"><span class="n">63</span><span class="l">BTS</span></div>
+    <div class="badge"><span class="n">6</span><span class="l">สาย</span></div>
+  </div>
+</div>
+
+<!-- MAP -->
+<div id="map"></div>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div id="sidebar-scroll">
+
+    <!-- SEARCH -->
+    <div class="sb-section">
+      <div class="sb-label">🔍 ค้นหาสถานี</div>
+      <input id="q" type="text" placeholder="พิมพ์ชื่อสถานี..."/>
+      <div id="q-results"></div>
+    </div>
+
+    <!-- LAYERS -->
+    <div class="sb-section">
+      <div class="sb-label">🗂 ชั้นข้อมูล</div>
+      <div id="layer-list"></div>
+    </div>
+
+    <!-- LEGEND -->
+    <div class="sb-section">
+      <div class="sb-label">🗺 คำอธิบายสัญลักษณ์</div>
+      <div class="leg-item"><span style="font-size:13px">●</span> สถานีทั่วไป</div>
+      <div class="leg-item"><span style="font-size:13px">★</span> สถานีเชื่อมต่อ (Interchange)</div>
+      <div class="leg-item"><div class="leg-line" style="background:#0057B8"></div> MRT สายสีน้ำเงิน</div>
+      <div class="leg-item"><div class="leg-line" style="background:#7B2D8B"></div> MRT สายสีม่วง</div>
+      <div class="leg-item"><div class="leg-line" style="background:#E8C400"></div> MRT สายสีเหลือง</div>
+      <div class="leg-item"><div class="leg-line" style="background:#00A650"></div> BTS สายสุขุมวิท (เขียวอ่อน)</div>
+      <div class="leg-item"><div class="leg-line" style="background:#007A3D"></div> BTS สายสีลม (เขียวเข้ม)</div>
+      <div class="leg-item"><div class="leg-line" style="background:#C8963E"></div> BTS สายสีทอง</div>
+      <div class="leg-item"><span style="color:#3b82f6;opacity:0.5;font-size:16px">⬤</span> Buffer Zone 500 ม.</div>
+    </div>
+
+    <!-- INFO -->
+    <div class="sb-section" style="border-bottom:none; flex:1;">
+      <div class="sb-label">📍 ข้อมูลสถานี</div>
+      <div id="info-default">
+        <div class="big">🗺</div>
+        <p>คลิกที่สถานีบนแผนที่<br>เพื่อดูรายละเอียดและ Buffer Zone</p>
+      </div>
+      <div id="info-detail"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════
+const MRT_LINES    = {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","num_sta":38,"id_mrtline":"001"},"geometry":{"type":"LineString","coordinates":[[100.40405,13.71043],[100.43681,13.7131],[100.44469,13.71514],[100.45004,13.71701],[100.45375,13.71843],[100.47043,13.72754],[100.47357,13.72938],[100.47674,13.73111],[100.48084,13.73668],[100.48205,13.73793],[100.48459,13.73828],[100.48951,13.73842],[100.49165,13.73894],[100.49382,13.74025],[100.4944,13.74133],[100.49486,13.74354],[100.49455,13.7465],[100.49522,13.74722],[100.50221,13.74705],[100.50414,13.74681],[100.50919,13.74289],[100.51561,13.73797],[100.51629,13.73779],[100.5207,13.73603],[100.5248,13.73441],[100.52888,13.73282],[100.53451,13.73046],[100.55259,13.72284],[100.5566,13.72123],[100.55807,13.72066],[100.55876,13.72083],[100.55938,13.72122],[100.56034,13.72427],[100.56027,13.72662],[100.5599,13.7293],[100.5598,13.73029],[100.55976,13.73122],[100.55977,13.73284],[100.55995,13.73343],[100.56029,13.73403],[100.56083,13.73478],[100.5611,13.73534],[100.56127,13.73626],[100.56165,13.73845],[100.56188,13.73981],[100.56195,13.74087],[100.56307,13.74754],[100.56343,13.74965],[100.5644,13.75406],[100.56531,13.75814],[100.56609,13.76078],[100.56938,13.76539],[100.57262,13.76964],[100.57306,13.77117],[100.57335,13.77613],[100.57366,13.78208],[100.57389,13.78685],[100.57418,13.79289],[100.57433,13.79581],[100.57457,13.80159],[100.57464,13.80425],[100.57448,13.80512],[100.57426,13.8055],[100.57373,13.80603],[100.56845,13.80897],[100.56278,13.81226],[100.56212,13.81265],[100.56079,13.81338],[100.55886,13.8137],[100.55777,13.81219],[100.55644,13.8082],[100.55394,13.80393],[100.5511,13.79915],[100.5501,13.79832],[100.5485,13.79795],[100.54647,13.79795],[100.54588,13.7983],[100.54462,13.80059],[100.54412,13.80094],[100.53916,13.80319],[100.53635,13.80464],[100.53523,13.80517],[100.53371,13.8057],[100.53232,13.80594],[100.53089,13.80614],[100.52899,13.80636],[100.52573,13.80641],[100.51988,13.80641],[100.51926,13.80631],[100.5139,13.80488],[100.51316,13.80455],[100.51253,13.80417],[100.51219,13.80388],[100.51191,13.80347],[100.51178,13.80308],[100.5114,13.80149],[100.51105,13.80072],[100.51037,13.79978],[100.50675,13.79492],[100.5051,13.7927],[100.50365,13.7907],[100.50238,13.78952],[100.50021,13.78819],[100.49577,13.78541],[100.49082,13.78227],[100.48822,13.78065],[100.48746,13.78001],[100.48513,13.77722],[100.4845,13.77643],[100.48309,13.77436],[100.48128,13.77217],[100.47921,13.77011],[100.47738,13.76808],[100.47469,13.76491],[100.47009,13.75955],[100.46967,13.75903],[100.46949,13.75872],[100.46934,13.75838],[100.46922,13.75801],[100.46919,13.75751],[100.46923,13.75703],[100.46952,13.75354],[100.47006,13.74747],[100.4706,13.74144],[100.47107,13.73618],[100.4712,13.73549],[100.47151,13.73471],[100.47409,13.72966]]}},{"type":"Feature","properties":{"name":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","num_sta":16,"id_mrtline":"002"},"geometry":{"type":"LineString","coordinates":[[100.53075,13.80615],[100.53123,13.81001],[100.5322,13.81811],[100.53262,13.82161],[100.53276,13.82307],[100.53271,13.82373],[100.53248,13.82445],[100.53202,13.82516],[100.53131,13.82583],[100.526,13.83028],[100.52065,13.83477],[100.5137,13.84062],[100.51249,13.84171],[100.51219,13.84223],[100.51198,13.84293],[100.51199,13.84391],[100.51224,13.84454],[100.51291,13.8456],[100.51472,13.84855],[100.51647,13.85109],[100.51831,13.8538],[100.51858,13.85435],[100.51869,13.85512],[100.51856,13.856],[100.51805,13.85708],[100.51729,13.85859],[100.51669,13.8593],[100.51553,13.85984],[100.51261,13.86024],[100.50591,13.86131],[100.5035,13.86196],[100.50058,13.86294],[100.49705,13.86442],[100.4941,13.86594],[100.49016,13.868],[100.48806,13.86913],[100.4869,13.86969],[100.48541,13.8702],[100.48452,13.87038],[100.48357,13.8705],[100.48177,13.87045],[100.47794,13.87012],[100.47194,13.86963],[100.47112,13.86963],[100.46989,13.86975],[100.46892,13.86994],[100.46784,13.87022],[100.46518,13.8709],[100.4638,13.87133],[100.45649,13.87458],[100.45439,13.87553],[100.45295,13.87613],[100.45204,13.87641],[100.45114,13.87665],[100.44988,13.87681],[100.44893,13.87685],[100.44699,13.87678],[100.44016,13.87626],[100.43062,13.8755],[100.41935,13.8747],[100.41595,13.87444],[100.41499,13.87438],[100.41425,13.87442],[100.41356,13.87453],[100.41257,13.87485],[100.41181,13.87521],[100.41101,13.87571],[100.41031,13.87644],[100.4097,13.87757],[100.40951,13.8782],[100.40929,13.88104],[100.40891,13.88504],[100.4082,13.89252],[100.40746,13.90033],[100.40719,13.90339]]}},{"type":"Feature","properties":{"name":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","num_sta":23,"id_mrtline":"003"},"geometry":{"type":"LineString","coordinates":[[100.59536,13.64543],[100.60412,13.64113],[100.61662,13.63326],[100.62645,13.62796],[100.63,13.63321],[100.64002,13.65004],[100.64261,13.65727],[100.64449,13.66479],[100.64571,13.6712],[100.64673,13.68626],[100.64732,13.69727],[100.64419,13.71146],[100.64297,13.71542],[100.64186,13.72421],[100.64087,13.73549],[100.642,13.73942],[100.64513,13.75138],[100.64574,13.75945],[100.64547,13.76311],[100.64468,13.76627],[100.62992,13.7747],[100.61284,13.7841],[100.59372,13.79463],[100.57492,13.80526],[100.57502,13.80892]]}}]};
+const MRT_STATIONS = {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"id":"BL01","name":"สถานีท่าพระ","location":"ยกระดับเหนือแยกท่าพระ ซึ่งเป็นจุดตัดระหว่างถนนจรัญสนิทวงศ์ ถนนเพชรเกษม และถนนรัชดาภิเษกฝั่งใต้","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"บางกอกใหญ่","station_co":""},"geometry":{"type":"Point","coordinates":[100.474088,13.729659]}},{"type":"Feature","properties":{"id":"BL02","name":"สถานีจรัญฯ 13","location":"ถนนจรัญสนิทวงศ์ บริเวณแยกพาณิชยการธนบุรี","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"บางกอกใหญ่","station_co":""},"geometry":{"type":"Point","coordinates":[100.470732,13.740057]}},{"type":"Feature","properties":{"id":"BL03","name":"สถานีไฟฉาย","location":"ถนนจรัญสนิทวงศ์ บริเวณด้านเหนือของแยกไฟฉาย","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"บางกอกน้อย","station_co":""},"geometry":{"type":"Point","coordinates":[100.469341,13.755731]}},{"type":"Feature","properties":{"id":"BL04","name":"สถานีบางขุนนนท์","location":"ถนนจรัญสนิทวงศ์ ระหว่างสี่แยกบางขุนนนท์","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"บางกอกน้อย","station_co":""},"geometry":{"type":"Point","coordinates":[100.473365,13.763345]}},{"type":"Feature","properties":{"id":"BL05","name":"สถานีบางยี่ขัน","location":"ถนนจรัญสนิทวงศ์ หน้าปากซอยจรัญสนิทวงศ์ 42 บริเวณหน้าตลาดอินดี้ปิ่นเกล้า","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"บางพลัด","station_co":""},"geometry":{"type":"Point","coordinates":[100.485347,13.777474]}},{"type":"Feature","properties":{"id":"BL06","name":"สถานีสิรินธร","location":"ยกระดับเหนือถนนจรัญสนิทวงศ์ กรุงเทพมหานคร","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"บางพลัด","station_co":""},"geometry":{"type":"Point","coordinates":[100.49323,13.783808]}},{"type":"Feature","properties":{"id":"BL07","name":"สถานีบางพลัด","location":"ถนนจรัญสนิทวงศ์ บริเวณด้านหน้าธนาคารกสิกรไทย สาขาบางพลัด","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"บางพลัด","station_co":""},"geometry":{"type":"Point","coordinates":[100.504864,13.792388]}},{"type":"Feature","properties":{"id":"BL08","name":"สถานีบางอ้อ","location":"ถนนจรัญสนิทวงศ์บริเวณซอยจรัญสนิทวงศ์ 88","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"บางพลัด","station_co":""},"geometry":{"type":"Point","coordinates":[100.50979,13.798992]}},{"type":"Feature","properties":{"id":"BL09","name":"สถานีบางโพ","location":"ถนนประชาราษฎร์ สาย 2 บริเวณสี่แยกบางโพ","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"บางซื่อ","station_co":""},"geometry":{"type":"Point","coordinates":[100.521104,13.806407]}},{"type":"Feature","properties":{"id":"BL11","name":"สถานีบางซื่อ","location":"ใกล้สถานีรถไฟบางซื่อ ถนนเทอดดำริ","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"จตุจักร","station_co":""},"geometry":{"type":"Point","coordinates":[100.541038,13.802351]}},{"type":"Feature","properties":{"id":"BL12","name":"สถานีกำแพงเพชร","location":"ถนนกำแพงเพชร บริเวณสามแยกกำแพงเพชร 2 หน้าตลาด อ.ต.ก. และตลาดนัดจตุจักร","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"จตุจักร","station_co":""},"geometry":{"type":"Point","coordinates":[100.547936,13.797933]}},{"type":"Feature","properties":{"id":"BL13","name":"สถานีสวนจตุจักร","location":"ถนนพหลโยธิน ฝั่งทิศตะวันตก ในอาณาเขตสวนจตุจักรด้านทิศใต้ ตรงข้ามศูนย์ซ่อมบำรุงหมอชิต","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"จตุจักร","station_co":""},"geometry":{"type":"Point","coordinates":[100.553361,13.802951]}},{"type":"Feature","properties":{"id":"BL14","name":"สถานีพหลโยธิน","location":"บริเวณห้าแยกลาดพร้าว จุดบรรจบถนนลาดพร้าว, ถนนพหลโยธิน และถนนวิภาวดีรังสิต","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"จตุจักร","station_co":""},"geometry":{"type":"Point","coordinates":[100.561567,13.812969]}},{"type":"Feature","properties":{"id":"BL15","name":"สถานีลาดพร้าว","location":"ถนนลาดพร้าว บริเวณทิศตะวันตกของสี่แยกรัชดา-ลาดพร้าว จุดบรรจบถนนลาดพร้าวและถนนรัชดาภิเษก","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"จตุจักร","station_co":""},"geometry":{"type":"Point","coordinates":[100.572901,13.806524]}},{"type":"Feature","properties":{"id":"BL16","name":"สถานีรัชดาภิเษก","location":"ถนนรัชดาภิเษก บริเวณทิศเหนือของปากซอยโชคชัยร่วมมิตร และสะพานข้ามคลองบางซื่อ","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ดินแดง","station_co":""},"geometry":{"type":"Point","coordinates":[100.574478,13.798957]}},{"type":"Feature","properties":{"id":"BL17","name":"สถานีสุทธิสาร","location":"ถนนรัชดาภิเษก บริเวณกลางทางแยกรัชดา-สุทธิสาร","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ดินแดง","station_co":""},"geometry":{"type":"Point","coordinates":[100.574017,13.78946]}},{"type":"Feature","properties":{"id":"BL18","name":"สถานีห้วยขวาง","location":"ถนนรัชดาภิเษก บริเวณกลางแยกห้วยขวาง","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ดินแดง","station_co":""},"geometry":{"type":"Point","coordinates":[100.573492,13.778698]}},{"type":"Feature","properties":{"id":"BL19","name":"สถานีศูนย์วัฒนธรรมแห่งประเทศไทย","location":"ใต้ถนนรัชดาภิเษก บริเวณด้านหน้าศูนย์การค้าเอสพลานาด รัชดาภิเษก","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ดินแดง","station_co":""},"geometry":{"type":"Point","coordinates":[100.57007,13.766309]}},{"type":"Feature","properties":{"id":"BL20","name":"สถานีพระราม 9","location":"ถนนรัชดาภิเษก บริเวณทิศเหนือของสี่แยกพระราม 9","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ดินแดง","station_co":""},"geometry":{"type":"Point","coordinates":[100.565242,13.757843]}},{"type":"Feature","properties":{"id":"BL21","name":"สถานีเพชรบุรี","location":"ถนนรัชดาภิเษก (อโศก-ดินแดง) บริเวณทิศเหนือของสี่แยกอโศก-เพชรบุรี","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ราชเทวี","station_co":""},"geometry":{"type":"Point","coordinates":[100.563354,13.749195]}},{"type":"Feature","properties":{"id":"BL22","name":"สถานีสุขุมวิท","location":"ถนนอโศกมนตรี หน้าตลาดอโศก ด้านทิศเหนือของสี่แยกอโศกมนตรี","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"วัฒนา","station_co":""},"geometry":{"type":"Point","coordinates":[100.561417,13.737384]}},{"type":"Feature","properties":{"id":"BL23","name":"สถานีศูนย์การประชุมแห่งชาติสิริกิติ์","location":"ถนนรัชดาภิเษกตัดใหม่ ด้านหน้าศูนย์การประชุมแห่งชาติสิริกิติ์","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"คลองเตย","station_co":""},"geometry":{"type":"Point","coordinates":[100.559905,13.722624]}},{"type":"Feature","properties":{"id":"BL24","name":"สถานีคลองเตย","location":"ถนนพระรามที่ 4 ด้านหน้าสำนักงานการไฟฟ้านครหลวงเขตคลองเตย","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"คลองเตย","station_co":""},"geometry":{"type":"Point","coordinates":[100.554003,13.72229]}},{"type":"Feature","properties":{"id":"BL25","name":"สถานีลุมพินี","location":"ถนนพระรามที่ 4 บริเวณทิศตะวันออกของสี่แยกวิทยุ จุดบรรจบของถนนวิทยุ และถนนสาทรเหนือ-ใต้","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ปทุมวัน","station_co":""},"geometry":{"type":"Point","coordinates":[100.545778,13.725732]}},{"type":"Feature","properties":{"id":"BL26","name":"สถานีสีลม","location":"ใต้ผิวถนนพระรามที่ 4 บริเวณสี่แยกศาลาแดงด้านทิศตะวันออก หน้าสวนลุมพินี","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ปทุมวัน","station_co":""},"geometry":{"type":"Point","coordinates":[100.537313,13.729283]}},{"type":"Feature","properties":{"id":"BL27","name":"สถานีสามย่าน","location":"ถนนพระรามที่ 4 บริเวณสี่แยกสามย่านด้านทิศตะวันออกหน้าวัดหัวลำโพง","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ปทุมวัน","station_co":""},"geometry":{"type":"Point","coordinates":[100.530268,13.732228]}},{"type":"Feature","properties":{"id":"BL28","name":"สถานีหัวลำโพง","location":"ใต้ถนนพระรามที่ 4 บริเวณแยกหัวลำโพง จุดบรรจบ ถนนพระรามที่ 4, ถนนรองเมือง","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ปทุมวัน","station_co":""},"geometry":{"type":"Point","coordinates":[100.517163,13.737552]}},{"type":"Feature","properties":{"id":"BL29","name":"สถานีวัดมังกร","location":"ถนนเจริญกรุง บริเวณสี่แยกแปลงนาม","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ป้อมปราบศัตรูพ่าย","station_co":""},"geometry":{"type":"Point","coordinates":[100.509953,13.742288]}},{"type":"Feature","properties":{"id":"BL30","name":"สถานีสามยอด","location":"ถนนเจริญกรุง ตั้งแต่บริเวณแยกสามยอด","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"พระนคร  ","station_co":""},"geometry":{"type":"Point","coordinates":[100.50217,13.747054]}},{"type":"Feature","properties":{"id":"BL31","name":"สถานีสนามไชย","location":"ถนนสนามไชย ด้านทิศเหนือของแยกสะพานเจริญรัช 31 หรือปากคลองตลาด","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"พระนคร  ","station_co":""},"geometry":{"type":"Point","coordinates":[100.494737,13.744342]}},{"type":"Feature","properties":{"id":"BL32","name":"สถานีอิสรภาพ","location":"ระหว่างซอยอิสรภาพ 23 (ซอยวัดราชสิทธาราม) และซอยอิสรภาพ 34 (ซอยพิเศษสุข)","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"บางกอกใหญ่","station_co":""},"geometry":{"type":"Point","coordinates":[100.48572,13.738313]}},{"type":"Feature","properties":{"id":"BL33","name":"สถานีบางไผ่","location":"ถนนเพชรเกษม ระหว่างซอยเพชรเกษม 19 กับซอยเพชรเกษม 19/2 บริเวณหน้าโรงพยาบาลบางไผ่","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ภาษีเจริญ","station_co":""},"geometry":{"type":"Point","coordinates":[100.465144,13.724732]}},{"type":"Feature","properties":{"id":"BL34","name":"สถานีบางหว้า","location":"ถนนราชพฤกษ์ บริเวณด้านข้างสะพานยกระดับข้ามทางแยกต่างระดับเพชรเกษม","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ภาษีเจริญ","station_co":""},"geometry":{"type":"Point","coordinates":[100.457852,13.720707]}},{"type":"Feature","properties":{"id":"BL35","name":"สถานีเพชรเกษม48","location":"ถนนเพชรเกษม ระหว่างซอยเพชรเกษม 31/1 และ 46/2","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ภาษีเจริญ","station_co":""},"geometry":{"type":"Point","coordinates":[100.445448,13.71541]}},{"type":"Feature","properties":{"id":"BL36","name":"สถานีภาษีเจริญ","location":"ถนนเพชรเกษม หน้าศูนย์สรรพสินค้าซีคอนบางแค","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"ภาษีเจริญ","station_co":""},"geometry":{"type":"Point","coordinates":[100.434291,13.71289]}},{"type":"Feature","properties":{"id":"BL37","name":"สถานีบางแค","location":"ถนนเพชรเกษม ระหว่างซอยเพชรเกษม 62/3 กับซอยเพชรเกษม 62/4","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"บางแค","station_co":""},"geometry":{"type":"Point","coordinates":[100.422274,13.711893]}},{"type":"Feature","properties":{"id":"BL38","name":"สถานีหลักสอง","location":"ถนนเพชรเกษม อยู่ระหว่างซอยเพชรเกษม 80 และทางแยกต่างระดับเพชรเกษม ตัดกับถนนกาญจนาภิเษก","line":"เส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน","id_line":1,"dname":"บางแค","station_co":""},"geometry":{"type":"Point","coordinates":[100.409443,13.710864]}},{"type":"Feature","properties":{"id":"PP01","name":"สถานีคลองบางไผ่","location":"ถนนกาญจนาภิเษก บริเวณเยื้องปากซอยบ้านบัวทอง ด้านหน้าอาคารศูนย์ซ่อมบำรุงรถไฟฟ้าและอาคารจอดแล้วจร","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.408221,13.892388]}},{"type":"Feature","properties":{"id":"PP02","name":"สถานีตลาดบางใหญ่","location":"ถนนกาญจนาภิเษก","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.40929,13.881037]}},{"type":"Feature","properties":{"id":"PP03","name":"สถานีสามแยกบางใหญ่","location":"ถนนรัตนาธิเบศร์ หมู่ที่ 7 บ้านคลองบางเดื่อ ตำบลเสาธงหิน อำเภอบางใหญ่","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.419356,13.874696]}},{"type":"Feature","properties":{"id":"PP04","name":"สถานีบางพลู","location":"ถนนรัตนาธิเบศร์ ยกระดับเหนือสะพานข้ามทางแยกบางพลู","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.433796,13.87576]}},{"type":"Feature","properties":{"id":"PP05","name":"สถานีบางรักใหญ่","location":"ระหว่างทางแยกบางพลูกับทางแยกต่างระดับบางรักน้อย","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.444941,13.876607]}},{"type":"Feature","properties":{"id":"PP06","name":"สถานีบางรักน้อยท่าอิฐ","location":"ถนนรัตนาธิเบศร์ ใกล้กับทางแยกไทรม้าและอาคารจอดแล้วจรสถานีบางรักน้อยท่าอิฐ","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.45595,13.874806]}},{"type":"Feature","properties":{"id":"PP07","name":"สถานีไทรม้า","location":"ถนนรัตนาธิเบศร์ บริเวณซอยตาหรั่งและหมู่บ้านซื่อตรง รัตนาธิเบศร์","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.466702,13.870475]}},{"type":"Feature","properties":{"id":"PP08","name":"สถานีสะพานพระนั่งเกล้า","location":"ริมถนนรัตนาธิเบศร์ ใกล้กับทางขึ้นสะพานพระนั่งเกล้าฝั่งตะวันออก","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.480116,13.870304]}},{"type":"Feature","properties":{"id":"PP09","name":"สถานีแยกนนทบุรี 1","location":"เหนือถนนรัตนาธิเบศร์ บริเวณกลางทางแยกรัตนาธิเบศร์-เลี่ยงเมืองนนทบุรี","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.494105,13.865935]}},{"type":"Feature","properties":{"id":"PP10","name":"สถานีบางกระสอ","location":"เหนือถนนรัตนาธิเบศร์ บริเวณหน้าโรงเเรมแกรนด์ ริชมอนด์ และห้างสรรพสินค้าบิ๊กซี สาขารัตนาธิเบศร์","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.504606,13.861658]}},{"type":"Feature","properties":{"id":"PP11","name":"สถานีศูนย์ราชการนนทบุรี","location":"เหนือถนนรัตนาธิเบศร์ หน้าศูนย์ราชการจังหวัดนนทบุรี","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.513053,13.860187]}},{"type":"Feature","properties":{"id":"PP12","name":"สถานีกระทรวงสาธารณสุข","location":"เหนือถนนติวานนท์บริเวณบริเวณทางแยกศรีธัญญา","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.514717,13.848552]}},{"type":"Feature","properties":{"id":"PP13","name":"สถานีแยกติวานนท์","location":"เหนือถนนกรุงเทพฯ-นนทบุรี ใกล้ทางแยกติวานนท์","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.514973,13.839538]}},{"type":"Feature","properties":{"id":"PP14","name":"สถานีวงศ์สว่าง","location":"บนถนนกรุงเทพฯ-นนทบุรี ใกล้ สี่เเยกวงศ์สว่าง","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":"บางซื่อ","station_co":""},"geometry":{"type":"Point","coordinates":[100.526492,13.829867]}},{"type":"Feature","properties":{"id":"PP15","name":"สถานีบางซ่อน","location":"ถนนกรุงเทพ-นนทบุรี ระหว่างซอยกรุงเทพ-นนทบุรี 23 และซอยกรุงเทพ-นนทบุรี 25","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":"บางซื่อ","station_co":""},"geometry":{"type":"Point","coordinates":[100.53245,13.820103]}},{"type":"Feature","properties":{"id":"PP16","name":"สถานีเตาปูน","location":"แยกเตาปูน (จุดบรรจบระหว่างถนนประชาราษฎร์ สาย 2 กับถนนกรุงเทพ-นนทบุรี)","line":"เส้นทางรถไฟฟ้ามหานคร สายสีม่วง","id_line":2,"dname":"บางซื่อ","station_co":""},"geometry":{"type":"Point","coordinates":[100.530759,13.806148]}},{"type":"Feature","properties":{"id":"YL01","name":"สถานีลาดพร้าว","location":"ถนนลาดพร้าว บริเวณทิศตะวันตกของสี่แยกรัชดา-ลาดพร้าว","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"จตุจักร","station_co":"สถานีเชื่อมต่อเส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน สถานี BL15"},"geometry":{"type":"Point","coordinates":[100.574754,13.806973]}},{"type":"Feature","properties":{"id":"YL02","name":"สถานีภาวนา","location":"ตั้งอยู่บนถนนลาดพร้าว ระหว่างปากซอยลาดพร้าว 41 (ภาวนา) กับปากซอยลาดพร้าว 41/1","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"ห้วยขวาง","station_co":""},"geometry":{"type":"Point","coordinates":[100.584179,13.800133]}},{"type":"Feature","properties":{"id":"YL03","name":"สถานีโชคชัย 4","location":"ถนนลาดพร้าว บริเวณทางแยกโชคชัย 4 (จุดตัดกับถนนโชคชัย 4","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"วังทองหลาง","station_co":""},"geometry":{"type":"Point","coordinates":[100.594424,13.794237]}},{"type":"Feature","properties":{"id":"YL04","name":"สถานีลาดพร้าว 71","location":"ถนนลาดพร้าว บริเวณจุดตัดกับถนนประดิษฐ์มนูธรรม","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"วังทองหลาง","station_co":""},"geometry":{"type":"Point","coordinates":[100.607545,13.787038]}},{"type":"Feature","properties":{"id":"YL05","name":"สถานีลาดพร้าว 83","location":"ถนนลาดพร้าว บริเวณหน้าปากซอยลาดพร้าว 85 (อุทิศ 2) และปากซอยลาดพร้าว 100","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"วังทองหลาง","station_co":""},"geometry":{"type":"Point","coordinates":[100.613625,13.783671]}},{"type":"Feature","properties":{"id":"YL06","name":"สถานีมหาดไทย","location":"ถนนลาดพร้าว บริเวณหน้าปากซอยลาดพร้าว 95 (ปรางค์ทิพย์)","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"วังทองหลาง","station_co":""},"geometry":{"type":"Point","coordinates":[100.623207,13.778438]}},{"type":"Feature","properties":{"id":"YL07","name":"สถานีลาดพร้าว 101","location":NaN,"line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"บางกะปิ","station_co":""},"geometry":{"type":"Point","coordinates":[100.629914,13.774697]}},{"type":"Feature","properties":{"id":"YL08","name":"สถานีบางกะปิ","location":"ถนนลาดพร้าว บริเวณหน้าปากซอยลาดพร้าว 115","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"บางกะปิ","station_co":""},"geometry":{"type":"Point","coordinates":[100.639769,13.769036]}},{"type":"Feature","properties":{"id":"YL09","name":"สถานีแยกลำสาลี","location":"ถนนศรีนครินทร์ บริเวณทิศใต้ของทางแยกลำสาลี","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"บางกะปิ","station_co":"สถานีเชื่อมตอเสนทางเดิน เรือโดยสารคลองแสนแสบ ท่าเดอะมอลล์ บางกะปิ"},"geometry":{"type":"Point","coordinates":[100.645462,13.761812]}},{"type":"Feature","properties":{"id":"YL10","name":"สถานีศรีกรีฑา","location":"ถนนศรีนครินทร์ บริเวณทิศใต้ของทางแยกต่างระดับกรุงเทพกรีฑา","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"บางกะปิ","station_co":""},"geometry":{"type":"Point","coordinates":[100.644808,13.750401]}},{"type":"Feature","properties":{"id":"YL11","name":"สถานีหัวหมาก","location":NaN,"line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"สวนหลวง","station_co":"สถานีเชื่อมต่อเส้นทางรถไฟฟ้าแอร์พอร์ต เรล ลิงก์ (Airport Rail Link) สถานีหัวหมาก"},"geometry":{"type":"Point","coordinates":[100.641057,13.736144]}},{"type":"Feature","properties":{"id":"YL12","name":"สถานีกลันตัน","location":"ถนนศรีนครินทร์ บริเวณเชิงสะพานข้ามคลองโคกวัด","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"สวนหลวง","station_co":""},"geometry":{"type":"Point","coordinates":[100.641776,13.725275]}},{"type":"Feature","properties":{"id":"YL13","name":"สถานีศรีนุช","location":"ถนนศรีนครินทร์ ด้านใต้ของทางแยกสวนหลวงหรือทางแยกศรีนุช","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"สวนหลวง","station_co":""},"geometry":{"type":"Point","coordinates":[100.644276,13.711112]}},{"type":"Feature","properties":{"id":"YL14","name":"สถานีศรีนครินทร์ 38","location":"ถนนศรีนครินทร์ บริเวณปากซอยศรีนครินทร์ 38 (หมู่บ้านมิตรภาพ)","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"ประเวศ","station_co":""},"geometry":{"type":"Point","coordinates":[100.646518,13.701137]}},{"type":"Feature","properties":{"id":"YL15","name":"สถานีสวนหลวง ร.9","location":"ถนนศรีนครินทร์ บริเวณปากซอยศรีนครินทร์ 53 (หวังงาม)","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"ประเวศ","station_co":""},"geometry":{"type":"Point","coordinates":[100.647019,13.690865]}},{"type":"Feature","properties":{"id":"YL16","name":"สถานีศรีอุดม","location":"ถนนศรีนครินทร์ บริเวณทางทิศตะวันออกเฉียงใต้ของทางแยกศรีอุดมหรือทางแยกหนองบอน","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"ประเวศ","station_co":""},"geometry":{"type":"Point","coordinates":[100.646209,13.676643]}},{"type":"Feature","properties":{"id":"YL17","name":"สถานีศรีเอี่ยม","location":"ถนนศรีนครินทร์ บริเวณข้างสะพานทางแยกต่างระดับศรีเอี่ยม","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"คลองสามวา","station_co":""},"geometry":{"type":"Point","coordinates":[100.645046,13.667612]}},{"type":"Feature","properties":{"id":"YL18","name":"สถานีศรีลาซาล","location":"ถนนศรีนครินทร์ บริเวณทางใต้ของทางแยกศรีนครินทร์–ลาซาลหรือทางแยกศิครินทร์","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":"คลองสามวา","station_co":""},"geometry":{"type":"Point","coordinates":[100.642121,13.654968]}},{"type":"Feature","properties":{"id":"YL19","name":"สถานีศรีแบริ่ง","location":"ถนนศรีนครินทร์ บริเวณปากซอยศรีด่าน 13 ใกล้กับทางแยกศรีแบริ่ง","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.63621,13.643555]}},{"type":"Feature","properties":{"id":"YL20","name":"สถานีศรีด่าน","location":"ตำบลสำโรงเหนือ อำเภอเมืองสมุทรปราการ จังหวัดสมุทรปราการ","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.630001,13.63321]}},{"type":"Feature","properties":{"id":"YL21","name":"สถานีศรีเทพา","location":"หมู่ที่ 3 บ้านทิพวัล ตำบลเทพารักษ์ อำเภอเมืองสมุทรปราการ จังหวัดสมุทรปราการ","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.622715,13.629949]}},{"type":"Feature","properties":{"id":"YL22","name":"สถานีทิพวัล","location":"หมู่ที่ 3 บ้านทิพวัล ตำบลเทพารักษ์ อำเภอเมืองสมุทรปราการ จังหวัดสมุทรปราการ","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.609933,13.636775]}},{"type":"Feature","properties":{"id":"YL23","name":"สถานีสำโรง","location":"พื้นที่ตำบลเทพารักษ์ อำเภอเมืองสมุทรปราการ จังหวัดสมุทรปราการ","line":"เส้นทางรถไฟฟ้ามหานคร สายสีเหลือง","id_line":3,"dname":NaN,"station_co":"สถานีเชื่อมต่อเส้นทางเส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)สถานี E15"},"geometry":{"type":"Point","coordinates":[100.596614,13.645006]}}]};
+const BTS_STATIONS = {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"id":"N8","name":"สถานีหมอชิต","location":"บริเวณหน้าสวนจตุจักร เป็นจุดเชื่อมต่อการเดินทางที่สำคัญของกรุงเทพฯ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตจตุจักร","station_co":"สถานีเชื่อมต่อเส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน สถานี BL13"},"geometry":{"type":"Point","coordinates":[100.553812,13.802623]}},{"type":"Feature","properties":{"id":"N7","name":"สถานีสะพานควาย","location":"โรงพยาบาลเปาโล-ที่ทำการไปรษณีย์สามเสน","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตพญาไท","station_co":""},"geometry":{"type":"Point","coordinates":[100.54975,13.793863]}},{"type":"Feature","properties":{"id":"N5","name":"สถานีอารีย์","location":"บริเวณสามแยกซอยพหลโยธิน 7 (อารีย์)","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตพญาไท","station_co":""},"geometry":{"type":"Point","coordinates":[100.544578,13.77955]}},{"type":"Feature","properties":{"id":"N4","name":"สถานีสนามเป้า","location":"บริเวณด้านหน้ากองพลทหารม้าที่ 2 รักษาพระองค์ ด้านทิศใต้ของซอยพหลโยธิน 3","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตพญาไท","station_co":""},"geometry":{"type":"Point","coordinates":[100.542072,13.772551]}},{"type":"Feature","properties":{"id":"N3","name":"สถานีอนุสาวรีย์ชัยสมรภูมิ","location":"บริเวณทิศใต้ของอนุสาวรีย์ชัยสมรภูมิ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตราชเทวี","station_co":""},"geometry":{"type":"Point","coordinates":[100.537032,13.762703]}},{"type":"Feature","properties":{"id":"N2","name":"สถานีพญาไท","location":"ด้านทิศใต้ของทางแยกพญาไท (จุดบรรจบถนนพญาไทและถนนศรีอยุธยา)","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตราชเทวี","station_co":"สถานีเชื่อมต่อเส้นทางรถไฟฟ้าแอร์พอร์ต เรล ลิงก์ (Airport Rail Link)"},"geometry":{"type":"Point","coordinates":[100.533823,13.756956]}},{"type":"Feature","properties":{"id":"N1","name":"สถานีราชเทวี","location":"ถนนพญาไท ด้านทิศใต้ของทางแยกราชเทวี จุดบรรจบถนนพญาไทและถนนเพชรบุรี ใกล้สะพานหัวช้าง","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตราชเทวี","station_co":"สถานีเชื่อมต่อเส้นทางเรือโดยสารคลองแสนแสบ  ท่าสะพานหัวช้าง"},"geometry":{"type":"Point","coordinates":[100.531561,13.751817]}},{"type":"Feature","properties":{"id":"W1","name":"สถานีสนามกีฬาแห่งชาติ","location":"หน้าสนามกีฬาแห่งชาติ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตปทุมวัน","station_co":""},"geometry":{"type":"Point","coordinates":[100.529168,13.746508]}},{"type":"Feature","properties":{"id":"CEN","name":"สถานีสยาม","location":"บนถนนพระรามที่ 1 ระหว่างทางแยกปทุมวัน (จุดบรรจบถนนพระรามที่ 1 และถนนพญาไท) กับทางแยกเฉลิมเผ่า","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตปทุมวัน","station_co":"สถานีร่วมระหว่างเส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)กับเส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท"},"geometry":{"type":"Point","coordinates":[100.534221,13.745654]}},{"type":"Feature","properties":{"id":"S1","name":"สถานีราชดำริ","location":"ระหว่างทางแยกราชดำริซึ่งเป็นจุดบรรจบกับถนนสารสิน","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตปทุมวัน","station_co":""},"geometry":{"type":"Point","coordinates":[100.539451,13.739457]}},{"type":"Feature","properties":{"id":"S2","name":"สถานีศาลาแดง","location":"ยกระดับเหนือถนนสีลม ใจกลางย่านธุรกิจถนนสีลม ใกล้กับทางแยกศาลาแดง","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตบางรัก","station_co":"สถานีเชื่อมต่อเส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน สถานี BL26"},"geometry":{"type":"Point","coordinates":[100.534239,13.728515]}},{"type":"Feature","properties":{"id":"S3","name":"สถานีช่องนนทรีย์","location":"บนถนนนราธิวาสราชนครินทร์ บริเวณซอยพิพัฒน์ 2","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตบางรัก","station_co":"สถานีเชื่อมต่อรถโดยสารด่วนพิเศษ สายสาทร–ราชพฤกษ์ สถานีสาทร"},"geometry":{"type":"Point","coordinates":[100.529373,13.723854]}},{"type":"Feature","properties":{"id":"S5","name":"สถานีสุรศักดิ์","location":"หน้าสมาคมหอการค้าไทย-จีน","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตสาทร","station_co":""},"geometry":{"type":"Point","coordinates":[100.521567,13.719301]}},{"type":"Feature","properties":{"id":"S6","name":"สถานีสะพานตากสิน","location":"เชิงสะพานสมเด็จเจ้าพระยาตากสิน(สาทร)","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตบางรัก","station_co":"สถานีเชือมต่อเส้นทางเดินเรือด่วนเจ้าพระยา  ท่าสาทร"},"geometry":{"type":"Point","coordinates":[100.514177,13.718813]}},{"type":"Feature","properties":{"id":"E1","name":"สถานีชิดลม","location":"ด้านทิศตะวันตกของทางแยกชิดลม จุดบรรจบถนนเพลินจิต, ถนนชิดลม และถนนหลังสวน ใกล้ทางแยกราชประสงค์","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตปทุมวัน","station_co":""},"geometry":{"type":"Point","coordinates":[100.543032,13.744099]}},{"type":"Feature","properties":{"id":"E2","name":"สถานีเพลินจิต","location":"ด้านทิศตะวันออกของทางแยกเพลินจิต (จุดบรรจบถนนเพลินจิตและถนนวิทยุ) ใกล้จุดตัดทางพิเศษเฉลิมมหานคร","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตปทุมวัน","station_co":""},"geometry":{"type":"Point","coordinates":[100.549156,13.74303]}},{"type":"Feature","properties":{"id":"E3","name":"สถานีนานา","location":"ต้นถนนสุขุมวิท บริเวณปากซอยสุขุมวิท 6 และซอยสุขุมวิท 9","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตวัฒนา","station_co":""},"geometry":{"type":"Point","coordinates":[100.555335,13.740632]}},{"type":"Feature","properties":{"id":"E4","name":"สถานีอโศก","location":"ถนนสุขุมวิท ปากซอยสุขุมวิท 14 และซอยสุขุมวิท 19 ด้านทิศตะวันตกของทางแยกอโศกมนตรี","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตคลองเตย","station_co":"สถานีเชื่อมต่อเส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน สถานี BL22"},"geometry":{"type":"Point","coordinates":[100.560425,13.73702]}},{"type":"Feature","properties":{"id":"E5","name":"สถานีพร้อมพงษ์","location":"ถนนสุขุมวิท บริเวณปากซอยสุขุมวิท 24 (เกษม) และซอยสุขุมวิท 39 (พร้อมพงษ์)","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตวัฒนา","station_co":""},"geometry":{"type":"Point","coordinates":[100.56961,13.730517]}},{"type":"Feature","properties":{"id":"E6","name":"สถานีทองหล่อ","location":"ถนนสุขุมวิท บริเวณปากซอยสุขุมวิท 55 (ทองหล่อ) และซอยสุขุมวิท 38 (สันติสุข)","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตคลองเตย","station_co":""},"geometry":{"type":"Point","coordinates":[100.578463,13.724296]}},{"type":"Feature","properties":{"id":"E7","name":"สถานีเอกมัย","location":"บริเวณปากซอยสุขุมวิท 42 ด้านทิศตะวันออกของแยกเอกมัยใต้ จุดบรรจบถนนสุขุมวิทและซอยสุขุมวิท 63","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตคลองเตย","station_co":""},"geometry":{"type":"Point","coordinates":[100.585125,13.719553]}},{"type":"Feature","properties":{"id":"E8","name":"สถานีพระโขนง","location":"จุดบรรจบถนนสุขุมวิท ถนนพระรามที่ 4 ถนนสุขุมวิท 71ระหว่างซอยสุขุมวิท 44/1-46 กับซอยสุขุมวิท 67-69","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตวัฒนา","station_co":""},"geometry":{"type":"Point","coordinates":[100.59118,13.715265]}},{"type":"Feature","properties":{"id":"E9","name":"สถานีอ่อนนุช","location":"บริเวณทางแยกอ่อนนุช ระหว่างซอยสุขุมวิท 79 และซอยสุขุมวิท 81 กับซอยสุขุมวิท 50 และซอยสุขุมวิท 52","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตคลองเตย","station_co":" "},"geometry":{"type":"Point","coordinates":[100.601035,13.705629]}},{"type":"Feature","properties":{"id":"S7","name":"สถานีกรุงธนบุรี","location":"ใกล้สะพานสมเด็จพระเจ้าตากสินและถนนเจริญกรุง","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตคลองสาน","station_co":"สถานีเชื่อมต่อเส้นทางรถไฟฟ้า สายสีทอง สถานี G1"},"geometry":{"type":"Point","coordinates":[100.502531,13.720937]}},{"type":"Feature","properties":{"id":"S8","name":"สถานีวงเวียนใหญ่","location":"ใกล้วงเวียนใหญ่","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตคลองสาน","station_co":" "},"geometry":{"type":"Point","coordinates":[100.495218,13.721071]}},{"type":"Feature","properties":{"id":"E10","name":"สถานีบางจาก","location":"บนถนนสุขุมวิท ระหว่างซอยสุขุมวิท 97 และซอยสุขุมวิท 99 กับซอยสุขุมวิท 60/2 และซอยสุขุมวิท 62","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตพระโขนง","station_co":""},"geometry":{"type":"Point","coordinates":[100.605357,13.696716]}},{"type":"Feature","properties":{"id":"E11","name":"สถานีปุณณวิถี","location":"นนสุขุมวิท บริเวณปากซอยสุขุมวิท 101 (ปุณณวิถี) และซอยสุขุมวิท 64","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตพระโขนง","station_co":""},"geometry":{"type":"Point","coordinates":[100.608968,13.689308]}},{"type":"Feature","properties":{"id":"E12","name":"สถานีอุดมสุข","location":"ถนนสุขุมวิท ระหว่างซอยสุขุมวิท 101/3 กับถนนอุดมสุข (สุขุมวิท 103)","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตบางนา","station_co":""},"geometry":{"type":"Point","coordinates":[100.609476,13.679849]}},{"type":"Feature","properties":{"id":"E13","name":"สถานีบางนา","location":"ถนนสุขุมวิท บริเวณสะพานข้ามคลองบางนา หน้ากรมอุตุนิยมวิทยาและศูนย์แสดงสินค้าไบเทค","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตบางนา","station_co":""},"geometry":{"type":"Point","coordinates":[100.604646,13.668121]}},{"type":"Feature","properties":{"id":"E14","name":"สถานีแบริ่ง","location":"ถนนสุขุมวิท ระหว่างปากทางถนนลาซาล (สุขุมวิท 105) กับซอยสุขุมวิท 107","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตบางนา","station_co":""},"geometry":{"type":"Point","coordinates":[100.601798,13.661152]}},{"type":"Feature","properties":{"id":"S9","name":"สถานีโพธิ์นิมิตร","location":"ถนนราชพฤกษ์ ใกล้สี่แยกตากสิน","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตธนบุรี","station_co":""},"geometry":{"type":"Point","coordinates":[100.485969,13.71922]}},{"type":"Feature","properties":{"id":"S10","name":"สถานีตลาดพลู","location":"ถนนริมทางรถไฟและถนนเทอดไท","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตธนบุรี","station_co":"สถานีเชื่อมต่อรถโดยสารด่วนพิเศษ สายสาทร–ราชพฤกษ์ สถานีราชพฤกษ์"},"geometry":{"type":"Point","coordinates":[100.476386,13.714034]}},{"type":"Feature","properties":{"id":"S11","name":"สถานีวุฒากาศ","location":"บริเวณสี่แยกราชพฤกษ์-วุฒากาศ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตธนบุรี","station_co":""},"geometry":{"type":"Point","coordinates":[100.472621,13.712222]}},{"type":"Feature","properties":{"id":"S12","name":"สถานีบางหว้า","location":"บริเวณด้านข้างสะพานยกระดับข้ามทางแยกต่างระดับเพชรเกษม","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตภาษีเจริญ","station_co":"สถานีเชื่อมต่อเส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน สถานี BL34"},"geometry":{"type":"Point","coordinates":[100.457797,13.720789]}},{"type":"Feature","properties":{"id":"N9","name":"สถานีห้าแยกลาดพร้าว","location":"บริเวณใกล้กับจุดบรรจบถนนลาดพร้าว และถนนหอวัง ด้านหน้าศูนย์การค้าเซ็นทรัล ลาดพร้าว และโรงเรียนหอวัง","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตจตุจักร","station_co":"สถานีเชื่อมต่อเส้นทางรถไฟฟ้ามหานคร สายสีน้ำเงิน สถานี BL14"},"geometry":{"type":"Point","coordinates":[100.562055,13.81669]}},{"type":"Feature","properties":{"id":"N10","name":"สถานีพหลโยธิน 24","location":"บริเวณจุดตัดระหว่างถนนรัชดาภิเษกและถนนพหลโยธิน (แยกรัชโยธิน)","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตจตุจักร","station_co":""},"geometry":{"type":"Point","coordinates":[100.566461,13.824137]}},{"type":"Feature","properties":{"id":"N11","name":"สถานีรัชโยธิน","location":"บริเวณเชิงสะพานข้ามแยกรัชโยธิน ใกล้กับโรงภาพยนตร์เมเจอร์ ซีนีเพล็กซ์ รัชโยธิน","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตจตุจักร","station_co":""},"geometry":{"type":"Point","coordinates":[100.569718,13.829757]}},{"type":"Feature","properties":{"id":"N13","name":"สถานีมหาวิทยาลัยเกษตรศาสตร์","location":"บริเวณด้านหน้ามหาวิทยาลัยเกษตรศาสตร์ วิทยาเขตบางเขน","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตจตุจักร","station_co":""},"geometry":{"type":"Point","coordinates":[100.577119,13.842255]}},{"type":"Feature","properties":{"id":"N12","name":"สถานีเสนานิคม","location":"บริเวณด้านหน้ากรมพัฒนาที่ดิน","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตจตุจักร","station_co":""},"geometry":{"type":"Point","coordinates":[100.57362,13.836393]}},{"type":"Feature","properties":{"id":"N16","name":"สถานีกรมทหารราบที่ 11","location":"บริเวณด้านหน้ากรมทหารราบที่ 11 มหาดเล็กราชวัลลภรักษาพระองค์","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตบางเขน","station_co":""},"geometry":{"type":"Point","coordinates":[100.592056,13.867649]}},{"type":"Feature","properties":{"id":"N15","name":"สถานีบางบัว","location":"บริเวณด้านหน้า มหาวิทยาลัยศรีปทุม และโรงเรียนบางบัว (เพ่งตั้งตรงจิตวิทยาคาร) ใกล้กับแยกบางบัว","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตบางเขน","station_co":""},"geometry":{"type":"Point","coordinates":[100.585195,13.856015]}},{"type":"Feature","properties":{"id":"N14","name":"สถานีกรมป่าไม้","location":"บริเวณด้านหน้ากรมป่าไม้ และโรงเรียนสารวิทยา","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตจตุจักร","station_co":""},"geometry":{"type":"Point","coordinates":[100.581826,13.850252]}},{"type":"Feature","properties":{"id":"G2","name":"สถานีเจริญนคร","location":"เจริญนคร","line":"เส้นทางรถไฟฟ้า สายสีทอง","id_line":3,"dname":"เขตคลองสาน","station_co":""},"geometry":{"type":"Point","coordinates":[100.509057,13.726465]}},{"type":"Feature","properties":{"id":"G3","name":"สถานีคลองสาน","location":"สมเด็จเจ้าพระยา","line":"เส้นทางรถไฟฟ้า สายสีทอง","id_line":3,"dname":"เขตคลองสาน","station_co":""},"geometry":{"type":"Point","coordinates":[100.50763,13.730388]}},{"type":"Feature","properties":{"id":"S4","name":"สถานีเซนต์หลุยส์","location":"บริเวณปากซอยสาทร 11 (ซอยเซนต์หลุยส์ 3) ด้านหน้าอาคารเอไอเอ ทาวเวอร์","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม)","id_line":1,"dname":"เขตสาทร","station_co":""},"geometry":{"type":"Point","coordinates":[100.526699,13.720815]}},{"type":"Feature","properties":{"id":"N24","name":"สถานีคูคต","location":"บริเวณสถานีตำรวจภูธรคูคต ในพื้นที่ตำบลคูคต อำเภอลำลูกกา จังหวัดปทุมธานี","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.64657,13.932385]}},{"type":"Feature","properties":{"id":"N23","name":"สถานีแยก คปอ.","location":"บริเวณด้านหน้ากรมควบคุมการปฏิบัติการทางอากาศ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตดอนเมือง","station_co":""},"geometry":{"type":"Point","coordinates":[100.625873,13.925049]}},{"type":"Feature","properties":{"id":"N22","name":"สถานีพิพิธภัณฑ์กองทัพอากาศ","location":"ด้านหน้าฐานทัพอากาศดอนเมือง ในพื้นที่แขวงสนามบิน เขตดอนเมือง และแขวงคลองถนน เขตสายไหม","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตดอนเมือง","station_co":""},"geometry":{"type":"Point","coordinates":[100.621649,13.917873]}},{"type":"Feature","properties":{"id":"N21","name":"สถานีโรงพยาบาลภูมิพลอดุลยเดช","location":"บริเวณด้านหน้ากรมแพทย์ทหารอากาศ โรงพยาบาลภูมิพลอดุลยเดช และฐานทัพอากาศดอนเมือง","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตดอนเมือง","station_co":""},"geometry":{"type":"Point","coordinates":[100.617314,13.91058]}},{"type":"Feature","properties":{"id":"N20","name":"สถานีสะพานใหม่","location":"บริเวณด้านหน้าตลาดยิ่งเจริญพลาซ่า","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตบางเขน","station_co":""},"geometry":{"type":"Point","coordinates":[100.609037,13.896489]}},{"type":"Feature","properties":{"id":"N19","name":"สถานีสายหยุด","location":"บริเวณด้านหน้าซอยพหลโยธิน 69","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตบางเขน","station_co":""},"geometry":{"type":"Point","coordinates":[100.604272,13.888413]}},{"type":"Feature","properties":{"id":"N18","name":"สถานีพหลโยธิน 59","location":"บริเวณด้านหน้าซอยพหลโยธิน 59 และซอยหมู่บ้านราชตฤณมัย กับหมู่บ้านฝนทองนิเวศน์","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตบางเขน","station_co":""},"geometry":{"type":"Point","coordinates":[100.600799,13.882515]}},{"type":"Feature","properties":{"id":"N17","name":"สถานีวัดพระศรีมหาธาตุ","location":"บริเวณกลางวงเวียนอนุสาวรีย์พิทักษ์รัฐธรรมนูญ จุดตัดระหว่างถนนพหลโยธิน ถนนแจ้งวัฒนะ และถนนรามอินทรา","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":"เขตบางเขน","station_co":""},"geometry":{"type":"Point","coordinates":[100.596715,13.875256]}},{"type":"Feature","properties":{"id":"E15","name":"สถานีสำโรง","location":"ถนนสุขุมวิท ระหว่างสะพานข้ามคลองสำโรงกับทางแยกเทพารักษ์ ในพื้นที่จ.สมุทรปราการ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":NaN,"station_co":"สถานีเชื่อมต่อรถไฟฟ้ามหานคร สายสีเหลือง สถานี YL23"},"geometry":{"type":"Point","coordinates":[100.595821,13.646565]}},{"type":"Feature","properties":{"id":"E16","name":"สถานีปู่เจ้า","location":"ถนนสุขุมวิท บริเวณปากซอยสุขุมวิท 115 ใกล้กับห้างสรรพสินค้าบิ๊กซี ในพื้นที่จ.สมุทรปราการ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.592053,13.637388]}},{"type":"Feature","properties":{"id":"E17","name":"สถานีช้างเอราวัณ","location":"ถนนสุขุมวิท บริเวณซอยสุขุมวิท 7 ในพื้นที่จ.สมุทรปราการ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.590181,13.621473]}},{"type":"Feature","properties":{"id":"E18","name":"สถานีโรงเรียนนายเรือ","location":"ถนนสุขุมวิท บริเวณด้านหน้าโรงเรียนนายเรือ ในพื้นที่จ.สมุทรปราการ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.594918,13.60848]}},{"type":"Feature","properties":{"id":"E19","name":"สถานีปากน้ำ","location":"ถนนสุขุมวิท บริเวณหน้าวิทยาลัยสารพัดช่างสมุทรปราการ ในพื้นที่จ.สมุทรปราการ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.597103,13.602166]}},{"type":"Feature","properties":{"id":"E20","name":"สถานีศรีนครินทร์","location":"ถนนสุขุมวิท บริเวณสะพานข้ามคลองบางปิ้งและทางแยกการไฟฟ้าสมุทรปราการ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.609011,13.591966]}},{"type":"Feature","properties":{"id":"E21","name":"สถานีแพรกษา","location":"ถนนสุขุมวิท บริเวณด้านหน้าโรงเรียนสมุทรปราการ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.60785,13.584217]}},{"type":"Feature","properties":{"id":"E22","name":"สถานีสายลวด","location":"ถนนสุขุมวิท บริเวณปากซอยเทศบาลบางปู 43 ใกล้ทางแยกสายลวด ในพื้นที่จ.สมุทรปราการ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.605432,13.577797]}},{"type":"Feature","properties":{"id":"E23","name":"สถานีเคหะฯ","location":"ถนนสุขุมวิท บริเวณปากซอยเทศบาลบางปู 50 ในพื้นที่จ.สมุทรปราการ","line":"เส้นทางรถไฟฟ้าบีทีเอส สายสุขุมวิท (สีเขียวอ่อน)","id_line":2,"dname":NaN,"station_co":""},"geometry":{"type":"Point","coordinates":[100.607711,13.567731]}},{"type":"Feature","properties":{"id":"G1","name":"สถานีกรุงธนบุรี","location":"แขวงคลองต้นไทร เขตคลองสาน กรุงเทพมหานคร 10600","line":"เส้นทางรถไฟฟ้า สายสีทอง","id_line":3,"dname":"เขตคลองสาน","station_co":"สถานีเชื่อมต่อเส้นทางรถไฟฟ้าบีทีเอส สายสีลม (สีเขียวเข้ม) สถานี S7"},"geometry":{"type":"Point","coordinates":[100.503706,13.721065]}}]};
+
+// ═══════════════════════════════════════════
+//  LINE CONFIG
+// ═══════════════════════════════════════════
+const LINES = {
+  mrtBlue:   { color:'#0057B8', glow:'#4488ff', label:'MRT สายสีน้ำเงิน',       cnt:37, type:'mrt', lineId:'001', staId:1 },
+  mrtPurple: { color:'#7B2D8B', glow:'#cc66ff', label:'MRT สายสีม่วง',          cnt:16, type:'mrt', lineId:'002', staId:2 },
+  mrtYellow: { color:'#E8C400', glow:'#ffe555', label:'MRT สายสีเหลือง',        cnt:23, type:'mrt', lineId:'003', staId:3 },
+  btsSuk:    { color:'#00A650', glow:'#44ff88', label:'BTS สุขุมวิท (เขียวอ่อน)', cnt:46, type:'bts', staId:2 },
+  btsSilom:  { color:'#007A3D', glow:'#00cc66', label:'BTS สายสีลม (เขียวเข้ม)',  cnt:14, type:'bts', staId:1 },
+  btsGold:   { color:'#C8963E', glow:'#ffcc66', label:'BTS สายสีทอง',           cnt:3,  type:'bts', staId:3 },
+  buffers:   { color:'#3b82f6', label:'Buffer Zone (500 ม.)' }
+};
+
+// ═══════════════════════════════════════════
+//  MAP
+// ═══════════════════════════════════════════
+const map = L.map('map', {
+  center: [13.755, 100.52],
+  zoom: 12,
+  zoomControl: false
+});
+
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO',
+  subdomains: 'abcd',
+  maxZoom: 19
+}).addTo(map);
+
+// ═══════════════════════════════════════════
+//  LAYER GROUPS
+// ═══════════════════════════════════════════
+const LG = {};
+Object.keys(LINES).forEach(k => { LG[k] = L.layerGroup().addTo(map); });
+
+const layerOn = {};
+Object.keys(LINES).forEach(k => { layerOn[k] = true; });
+
+// ═══════════════════════════════════════════
+//  DRAW MRT POLYLINES
+// ═══════════════════════════════════════════
+MRT_LINES.features.forEach(function(feat) {
+  const id = feat.properties.id_mrtline;
+  const key = id === '001' ? 'mrtBlue' : id === '002' ? 'mrtPurple' : 'mrtYellow';
+  const cfg = LINES[key];
+  const g = feat.geometry;
+
+  var segs = g.type === 'LineString'
+    ? [g.coordinates]
+    : g.coordinates;
+
+  segs.forEach(function(seg) {
+    var latlngs = seg.map(function(c) { return [c[1], c[0]]; });
+    // Glow
+    L.polyline(latlngs, { color: cfg.glow, weight: 10, opacity: 0.15, interactive: false }).addTo(LG[key]);
+    // Line
+    L.polyline(latlngs, { color: cfg.color, weight: 4.5, opacity: 0.95, interactive: false }).addTo(LG[key]);
+  });
+});
+
+// ═══════════════════════════════════════════
+//  STATION MARKERS
+// ═══════════════════════════════════════════
+const allStations = [];
+
+function getLineKey(feat, type) {
+  var id = feat.properties.id_line;
+  if (type === 'mrt') {
+    if (id === 1) return 'mrtBlue';
+    if (id === 2) return 'mrtPurple';
+    return 'mrtYellow';
+  } else {
+    if (id === 2) return 'btsSuk';
+    if (id === 1) return 'btsSilom';
+    return 'btsGold';
+  }
+}
+
+function isInterchange(feat) {
+  var co = feat.properties.station_co;
+  return co && co.trim().length > 0 && co !== 'undefined' && co !== 'nan';
+}
+
+function makeIcon(cfg, interchange) {
+  if (interchange) {
+    var html = '<div style="width:16px;height:16px;border-radius:50%;background:' + cfg.color + ';border:2.5px solid #fff;box-shadow:0 0 8px ' + cfg.glow + ';display:flex;align-items:center;justify-content:center;font-size:9px;line-height:1;color:#fff;font-weight:900;">★</div>';
+    return L.divIcon({ className: '', html: html, iconSize: [16,16], iconAnchor: [8,8] });
+  } else {
+    var html2 = '<div style="width:10px;height:10px;border-radius:50%;background:' + cfg.color + ';border:2px solid rgba(255,255,255,0.75);box-shadow:0 0 5px ' + cfg.glow + ';"></div>';
+    return L.divIcon({ className: '', html: html2, iconSize: [10,10], iconAnchor: [5,5] });
+  }
+}
+
+function addStations(geojson, type) {
+  geojson.features.forEach(function(feat) {
+    var key = getLineKey(feat, type);
+    var cfg = LINES[key];
+    var lat = feat.geometry.coordinates[1];
+    var lng = feat.geometry.coordinates[0];
+    var ic = isInterchange(feat);
+
+    var marker = L.marker([lat, lng], { icon: makeIcon(cfg, ic) });
+    marker.bindTooltip(feat.properties.name, { direction:'top', offset:[0,-6] });
+
+    marker.on('click', function() {
+      showDetail(feat, key);
+    });
+
+    marker.addTo(LG[key]);
+
+    // Buffer circle
+    L.circle([lat, lng], {
+      radius: 500,
+      color: cfg.color,
+      fillColor: cfg.color,
+      fillOpacity: 0.07,
+      opacity: 0.3,
+      weight: 1,
+      dashArray: '5 4',
+      interactive: false
+    }).addTo(LG.buffers);
+
+    allStations.push({ feat: feat, key: key, type: type, lat: lat, lng: lng, marker: marker });
+  });
+}
+
+addStations(MRT_STATIONS, 'mrt');
+addStations(BTS_STATIONS, 'bts');
+
+// ═══════════════════════════════════════════
+//  STATION DETAIL
+// ═══════════════════════════════════════════
+function calcImportance(feat, key) {
+  var score = 35;
+  if (isInterchange(feat)) score += 45;
+  if (key === 'mrtBlue' || key === 'btsSuk') score += 12;
+  return Math.min(score, 100);
+}
+
+function showDetail(feat, key) {
+  var cfg = LINES[key];
+  var p = feat.properties;
+  var imp = calcImportance(feat, key);
+  var ic = isInterchange(feat);
+
+  document.getElementById('info-default').style.display = 'none';
+  var el = document.getElementById('info-detail');
+  el.style.display = 'block';
+
+  var coHtml = ic ? '<div class="info-row"><div class="ir-label">เชื่อมต่อกับสาย</div><div class="ir-value"><span class="co-badge">🔄 ' + p.station_co + '</span></div></div>' : '';
+
+  el.innerHTML =
+    '<div class="sta-card" style="background:linear-gradient(135deg,' + cfg.color + '22,' + cfg.color + '11);border:1px solid ' + cfg.color + '55;">' +
+      '<div class="sta-id">' + p.id + '</div>' +
+      '<div class="sta-name">' + p.name + '</div>' +
+      '<span class="line-tag" style="background:' + cfg.color + '">' + cfg.label + '</span>' +
+    '</div>' +
+    '<div class="info-row"><div class="ir-label">ที่ตั้ง</div><div class="ir-value">' + (p.location || '—') + '</div></div>' +
+    '<div class="info-row"><div class="ir-label">เขต (District)</div><div class="ir-value">' + (p.dname || '—') + '</div></div>' +
+    coHtml +
+    '<div class="buf-row"><div class="buf-label">📍 Buffer Zone</div><div class="buf-value">รัศมี 500 เมตร — พื้นที่ให้บริการ ≈ 0.785 ตร.กม.<br>ครอบคลุมพื้นที่เดินเท้าได้ ~6–7 นาที</div></div>' +
+    '<div class="info-row"><div class="ir-label">⚡ ระดับความสำคัญ</div><div class="ir-value">' + (ic ? 'สถานีเชื่อมต่อหลัก (Interchange)' : 'สถานีทั่วไป') + ' — ' + imp + '%<div class="imp-bar-bg"><div class="imp-bar-fill" style="width:' + imp + '%"></div></div></div></div>' +
+    '<button class="zoom-btn" onclick="map.flyTo([' + feat.geometry.coordinates[1] + ',' + feat.geometry.coordinates[0] + '],16,{duration:1.2})">🔍 Zoom to Station</button>';
+}
+
+// ═══════════════════════════════════════════
+//  LAYER PANEL
+// ═══════════════════════════════════════════
+var layerKeys = ['mrtBlue','mrtPurple','mrtYellow','btsSuk','btsSilom','btsGold','buffers'];
+
+function renderLayerList() {
+  var el = document.getElementById('layer-list');
+  el.innerHTML = '';
+  layerKeys.forEach(function(key) {
+    var cfg = LINES[key];
+    var on = layerOn[key];
+    var sym = key === 'buffers'
+      ? '<div class="lsym-dot" style="background:rgba(59,130,246,0.25);border:2px dashed #3b82f6;"></div>'
+      : '<div class="lsym-line" style="background:' + cfg.color + '"></div>';
+    var cnt = cfg.cnt ? '<span class="lcnt">' + cfg.cnt + '</span>' : '';
+    var row = document.createElement('div');
+    row.className = 'layer-row';
+    row.innerHTML = sym +
+      '<span class="lname">' + cfg.label + '</span>' +
+      cnt +
+      '<div class="tog ' + (on ? 'on' : 'off') + '" data-key="' + key + '"></div>';
+    row.querySelector('.tog').addEventListener('click', function(e) {
+      e.stopPropagation();
+      var k = this.dataset.key;
+      layerOn[k] = !layerOn[k];
+      this.className = 'tog ' + (layerOn[k] ? 'on' : 'off');
+      if (layerOn[k]) map.addLayer(LG[k]);
+      else map.removeLayer(LG[k]);
+    });
+    el.appendChild(row);
+  });
+}
+renderLayerList();
+
+// ═══════════════════════════════════════════
+//  SEARCH
+// ═══════════════════════════════════════════
+document.getElementById('q').addEventListener('input', function() {
+  var v = this.value.toLowerCase().trim();
+  var el = document.getElementById('q-results');
+  el.innerHTML = '';
+  if (!v) return;
+  var hits = allStations.filter(function(d) {
+    return d.feat.properties.name.toLowerCase().indexOf(v) >= 0 ||
+           d.feat.properties.id.toLowerCase().indexOf(v) >= 0;
+  }).slice(0, 8);
+  hits.forEach(function(d) {
+    var cfg = LINES[d.key];
+    var item = document.createElement('div');
+    item.className = 'q-item';
+    item.innerHTML = '<div class="q-dot" style="background:' + cfg.color + '"></div>' +
+      '<span>' + d.feat.properties.name + '</span>' +
+      '<span style="font-size:10px;color:#4b6a8a;margin-left:auto">' + d.feat.properties.id + '</span>';
+    item.addEventListener('click', function() {
+      document.getElementById('q-results').innerHTML = '';
+      document.getElementById('q').value = d.feat.properties.name;
+      map.flyTo([d.lat, d.lng], 16, { duration: 1.2 });
+      showDetail(d.feat, d.key);
+    });
+    el.appendChild(item);
+  });
+});
+
+
+</script>
+</body>
+</html>
